@@ -6,12 +6,22 @@ import pandas as pd
 from openai import OpenAI
 from google import genai
 import json
+import re
+import logging
+
+# Set up logging
+logging.basicConfig(filename='server.log', level=logging.DEBUG, 
+                    format='%(asctime)s %(levelname)s: %(message)s')
 
 # --- 0. LOAD ENVIRONMENT VARIABLES ---
 load_dotenv()  # This looks for the .env file in the same folder
 
-app = Flask(__name__)
-CORS(app) 
+app = Flask(__name__, static_folder='static', static_url_path='/static')
+CORS(app)
+
+@app.route('/')
+def index():
+    return app.send_static_file('../index.html') if os.path.exists('index.html') else "Index not found"
 
 # --- 1. DATA LOAD ---
 try:
@@ -43,8 +53,8 @@ def staff_chatbot():
         if goal_col:
             cols_to_show.append(goal_col)
             
-        # Sending a safe slice of data to avoid token limits
-        class_summary = df_students[cols_to_show].head(40).to_string()
+        # Sending the full class data (currently ~64 students) for accurate analysis
+        class_summary = df_students[cols_to_show].to_string()
         
         prompt = f"""
         You are an Academic Data Analyst.
@@ -53,7 +63,8 @@ def staff_chatbot():
         
         INSTRUCTIONS:
         1. Analyze class performance and career interests.
-        2. For charts, return ONLY this JSON: {{"is_chart": true, "chart_type": "bar", "title": "...", "labels": [], "data": []}}
+        2. For charts, provide a clear explanation AND the JSON block: {{"is_chart": true, "chart_type": "bar", "title": "...", "labels": [], "data": []}}
+        3. Do not include multiple different chart JSONs in one response.
         """
 
         try:
@@ -62,19 +73,36 @@ def staff_chatbot():
                 messages=[{"role": "system", "content": prompt}, {"role": "user", "content": user_msg}]
             )
             reply = res.choices[0].message.content
-        except:
-            res = gemini_client.models.generate_content(model='gemini-2.0-flash', contents=f"{prompt}\n{user_msg}")
-            reply = res.text
+        except Exception as e:
+            logging.error(f"Groq Error in staff: {e}. Falling back to Gemini.")
+            try:
+                res = gemini_client.models.generate_content(model='gemini-2.0-flash', contents=f"{prompt}\n{user_msg}")
+                reply = res.text
+            except Exception as e2:
+                logging.error(f"Gemini Error in staff: {e2}")
+                return jsonify({"status": "error", "message": "All AI models failed", "reply": f"AI Error: {str(e2)}"})
 
+        # 🚀 ROBUST JSON EXTRACTION: Find the first valid JSON block { ... }
         try:
-            chart_json = json.loads(reply)
-            return jsonify({"status": "success", "type": "chart", "chart_data": chart_json})
-        except:
+            # Using a more careful regex to find the first '{' to its matching '}'
+            # This is simpler and less prone to greedy capture across multiple blocks
+            matches = re.findall(r'\{.*?\}', reply, re.DOTALL)
+            for m in matches:
+                try:
+                    chart_json = json.loads(m)
+                    if chart_json.get("is_chart"):
+                        return jsonify({"status": "success", "type": "chart", "chart_data": chart_json, "reply": reply})
+                except:
+                    continue
+            
             return jsonify({"status": "success", "type": "text", "reply": reply})
+        except Exception as e:
+            logging.error(f"Groq/Gemini Error in staff: {e}")
+            return jsonify({"status": "success", "type": "text", "reply": f"AI Error: {str(e)}"})
 
     except Exception as e:
-        print(f"❌ Staff Route Error: {e}")
-        return jsonify({"status": "error", "message": str(e)})
+        logging.error(f"Staff Route Critical Error: {e}")
+        return jsonify({"status": "error", "message": str(e), "reply": "Internal Server Error. Check server.log."})
 
 # --- 4. STUDENT PORTAL ROUTE (/student/chat) ---
 @app.route('/student/chat', methods=['POST'])
@@ -99,13 +127,51 @@ def student_chatbot():
                 messages=[{"role": "system", "content": prompt}, {"role": "user", "content": user_msg}]
             )
             reply = res.choices[0].message.content
-        except:
-            res = gemini_client.models.generate_content(model='gemini-2.5-flash', contents=f"{prompt}\n{user_msg}")
+        except Exception as e:
+            logging.error(f"Groq/Gemini Error in student: {e}")
+            res = gemini_client.models.generate_content(model='gemini-2.0-flash', contents=f"{prompt}\n{user_msg}")
             reply = res.text
 
         return jsonify({"status": "success", "reply": reply})
     except Exception as e:
-        print(f"❌ Student Route Error: {e}")
+        logging.error(f"Student Route Critical Error: {e}")
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- 5. STUDENT LOGIN ROUTE ---
+@app.route('/student/login', methods=['POST'])
+def student_login():
+    try:
+        data = request.json
+        reg_no = str(data.get('reg_no')).strip()
+        password = str(data.get('password')).strip()
+        
+        student_row = df_students[df_students['Reg_No'] == reg_no]
+        if student_row.empty:
+            return jsonify({"status": "error", "message": "Invalid Registration Number"}), 404
+        
+        # Get profile data
+        student_data = student_row.to_dict(orient='records')[0]
+        
+        # Verify password (DOB)
+        if str(student_data.get('DOB')).strip() != password:
+            return jsonify({"status": "error", "message": "Incorrect Password (Hint: DOB)"}), 401
+        
+        # Return necessary fields for the dashboard
+        return jsonify({
+            "status": "success",
+            "profile": {
+                "name": student_data.get('Name'),
+                "reg_no": student_data.get('Reg_No'),
+                "cgpa": student_data.get('CGPA'),
+                "attendance": student_data.get('Sem6_Current_Attendance_%'),
+                "projects": student_data.get('Completed_Projects_Count'),
+                "email": student_data.get('Email'),
+                "dept": "Computer Science & Engineering", # Assuming based on CSV course codes
+                "year": "3rd Year" # Assuming based on Sem 6
+            }
+        })
+    except Exception as e:
+        print(f"❌ Login Error: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
