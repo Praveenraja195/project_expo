@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic AI Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .chat-container { width: 500px; background: white; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; }
+        .chat-header { background: #2c3e50; color: white; padding: 20px; text-align: center; font-size: 1.2rem; font-weight: bold; }
+        .chat-box { height: 500px; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; background: #fafafa; }
+        .message { max-width: 85%; padding: 12px 16px; border-radius: 20px; font-size: 0.95rem; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; }
+        .user-msg { background: #3498db; color: white; align-self: flex-end; border-bottom-right-radius: 5px; }
+        .ai-msg { background: #e0e0e0; color: #333; align-self: flex-start; border-bottom-left-radius: 5px; }
+        .chart-msg { width: 90%; background: white; border: 1px solid #ddd; padding: 15px; align-self: center; border-radius: 10px; }
+        .input-area { display: flex; padding: 15px; background: white; border-top: 1px solid #eee; }
+        input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; outline: none; font-size: 1rem; }
+        button { background: #2c3e50; color: white; border: none; padding: 10px 20px; margin-left: 10px; border-radius: 25px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #1a252f; }
+        .typing { font-size: 0.85rem; color: #888; align-self: flex-start; display: none; margin-top: -5px; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">🤖 Staff Academic Assistant</div>
+    <div class="chat-box" id="chat-box">
+        <div class="message ai-msg">Hello Professor! I have loaded the class data. You can ask me questions, or say "Draw a chart of..."</div>
+        <div class="typing" id="typing-indicator">AI is thinking...</div>
+    </div>
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Ask a question or request a chart..." onkeypress="handleKeyPress(event)">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:5000/chat";
+
+    async function sendMessage() {
+        const inputField = document.getElementById("user-input");
+        const chatBox = document.getElementById("chat-box");
+        const typingIndicator = document.getElementById("typing-indicator");
+        const message = inputField.value.trim();
+
+        if (message === "") return;
+
+        // Show User Message
+        const userDiv = document.createElement("div");
+        userDiv.className = "message user-msg";
+        userDiv.innerText = message;
+        chatBox.insertBefore(userDiv, typingIndicator);
+        
+        inputField.value = "";
+        typingIndicator.style.display = "block";
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: message })
+            });
+
+            const data = await response.json();
+            typingIndicator.style.display = "none";
+
+            if (data.status === "success") {
+                if (data.type === "text") {
+                    const aiDiv = document.createElement("div");
+                    aiDiv.className = "message ai-msg";
+                    aiDiv.innerText = data.reply;
+                    chatBox.insertBefore(aiDiv, typingIndicator);
+                } 
+                else if (data.type === "chart") {
+                    const chartDiv = document.createElement("div");
+                    chartDiv.className = "chart-msg";
+                    chartDiv.innerHTML = `<div style="text-align:center; font-weight:bold; margin-bottom:10px;">${data.chart_data.title}</div>`;
+                    
+                    // 🚀 THE FIX IS HERE: Create a wrapper with a strict height
+                    const canvasWrapper = document.createElement("div");
+                    canvasWrapper.style.position = "relative";
+                    canvasWrapper.style.height = "250px"; // Force the height so it doesn't squish
+                    canvasWrapper.style.width = "100%";
+                    
+                    const canvas = document.createElement("canvas");
+                    canvasWrapper.appendChild(canvas);
+                    chartDiv.appendChild(canvasWrapper);
+                    
+                    chatBox.insertBefore(chartDiv, typingIndicator);
+
+                    // Draw the chart!
+                    new Chart(canvas, {
+                        type: data.chart_data.chart_type,
+                        data: {
+                            labels: data.chart_data.labels,
+                            datasets: [{
+                                label: data.chart_data.title,
+                                data: data.chart_data.data,
+                                backgroundColor: ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#34495e'],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: { 
+                            responsive: true,
+                            maintainAspectRatio: false // 🚀 Keeps the chart full-sized inside the wrapper
+                        }
+                    });
+                }
+            } else {
+                throw new Error(data.message);
+            }
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+        } catch (error) {
+            typingIndicator.style.display = "none";
+            const aiDiv = document.createElement("div");
+            aiDiv.className = "message ai-msg";
+            aiDiv.innerText = "Error: " + error.message;
+            chatBox.insertBefore(aiDiv, typingIndicator);
+        }
+    }
+
+    function handleKeyPress(event) {
+        if (event.key === "Enter") sendMessage();
+    }
+</script>
+
+</body>
+</html>

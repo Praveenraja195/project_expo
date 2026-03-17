@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Academic AI Portal</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #eef2f3; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .wrapper { width: 100%; max-width: 550px; }
+        .card { background: white; padding: 35px; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        .login-box h1 { color: #2c3e50; margin-bottom: 5px; }
+        .input-field { width: 100%; padding: 14px; margin: 15px 0; border: 1.5px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
+        .btn-primary { width: 100%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-primary:hover { background: #0056b3; }
+        #chat-interface { display: none; width: 90vw; max-width: 850px; }
+        .chat-box { height: 450px; overflow-y: auto; padding: 20px; background: #fdfdfd; border-radius: 15px; border: 1px solid #eee; display: flex; flex-direction: column; gap: 15px; text-align: left; }
+        .ai-msg { background: #f0f4f8; padding: 15px; border-radius: 0 15px 15px 15px; align-self: flex-start; max-width: 85%; color: #34495e; border-left: 4px solid #007bff; line-height: 1.6; }
+        .user-msg { background: #007bff; color: white; padding: 12px 18px; border-radius: 15px 15px 0 15px; align-self: flex-end; max-width: 80%; box-shadow: 0 4px 10px rgba(0,123,255,0.2); }
+    </style>
+</head>
+<body>
+
+<div id="login-form" class="wrapper">
+    <div class="card" style="text-align: center;">
+        <h1>🎓 Student Portal</h1>
+        <p style="color: #7f8c8d;">Enter your ID to access your AI Career Coach</p>
+        <input type="text" id="reg-no" class="input-field" placeholder="Registration Number (e.g. 731123104301)">
+        <button class="btn-primary" onclick="doLogin()">Login</button>
+    </div>
+</div>
+
+<div id="chat-interface" class="wrapper">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f4f4f4; margin-bottom: 20px; padding-bottom: 10px;">
+            <h2 style="margin:0; color:#2c3e50;">🤖 AI Career Mentor</h2>
+            <span id="display-reg" style="font-weight: bold; color: #007bff;"></span>
+        </div>
+        <div class="chat-box" id="chat-box">
+            <div class="ai-msg">I've loaded your full profile, including your projects, strengths, and GPA trends. How can I guide you today?</div>
+        </div>
+        <div style="display: flex; margin-top: 20px; gap: 10px;">
+            <input type="text" id="user-input" class="input-field" style="margin:0;" placeholder="Ask about your career path..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button class="btn-primary" style="width: auto;" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function doLogin() {
+        const regNo = document.getElementById('reg-no').value.trim();
+        if (regNo.length < 5) { alert("Invalid ID"); return; }
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('chat-interface').style.display = 'block';
+        document.getElementById('display-reg').innerText = "ID: " + regNo;
+    }
+
+    async function sendMessage() {
+        const box = document.getElementById('chat-box');
+        const input = document.getElementById('user-input');
+        const regNo = document.getElementById('display-reg').innerText.replace("ID: ", "");
+        const msg = input.value;
+        if (!msg) return;
+
+        box.innerHTML += `<div class="user-msg">${msg}</div>`;
+        input.value = "";
+        box.scrollTop = box.scrollHeight;
+
+        try {
+            const res = await fetch('http://127.0.0.1:5000/student/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reg_no: regNo, message: msg })
+            });
+            const data = await res.json();
+            box.innerHTML += `<div class="ai-msg"><strong>Mentor:</strong><br>${data.reply.replace(/\n/g, '<br>')}</div>`;
+        } catch (e) {
+            box.innerHTML += `<div class="ai-msg" style="color:red">Connection error. Is the server running?</div>`;
+        }
+        box.scrollTop = box.scrollHeight;
+    }
+</script>
+</body>
+</html>

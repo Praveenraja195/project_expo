@@ -1,0 +1,14 @@
+# AI Keys & Secrets
+.env
+
+# Python junk
+__pycache__/
+*.py[cod]
+*$py.class
+vwen/
+.venv/
+env/
+
+# Excel/Data temp files
+~$*
+.DS_Store
