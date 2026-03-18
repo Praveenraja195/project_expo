@@ -1,4 +1,6 @@
-const API = "http://127.0.0.1:5000";
+const API = window.location.origin.includes('127.0.0.1') || window.location.origin.includes('localhost') 
+    ? "http://127.0.0.1:5000" 
+    : window.location.origin;
 let currentRole = null;
 let profile = null;
 
