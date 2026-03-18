@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 from openai import OpenAI
@@ -21,7 +21,15 @@ CORS(app)
 
 @app.route('/')
 def index():
-    return app.send_static_file('../index.html') if os.path.exists('index.html') else "Index not found"
+    return send_from_directory('.', 'index.html')
+
+@app.route('/styles.css')
+def serve_css():
+    return send_from_directory('.', 'styles.css')
+
+@app.route('/main.js')
+def serve_js():
+    return send_from_directory('.', 'main.js')
 
 # --- 1. DATA LOAD ---
 try:
