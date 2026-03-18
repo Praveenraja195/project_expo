@@ -167,7 +167,19 @@ def student_login():
                 "projects": student_data.get('Completed_Projects_Count'),
                 "email": student_data.get('Email'),
                 "dept": "Computer Science & Engineering", # Assuming based on CSV course codes
-                "year": "3rd Year" # Assuming based on Sem 6
+                "year": "3rd Year", # Assuming based on Sem 6
+                "skills": student_data.get('Technical_Skills_Known'),
+                "career_goal": student_data.get('Target_Career_Goal'),
+                "aptitude_score": student_data.get('Aptitude_Test_Score_Avg'),
+                "interview_rating": student_data.get('Mock_Interview_Rating'),
+                "arrears": student_data.get('Total_Arrears_History'),
+                "gpa_history": {
+                    "Sem1": student_data.get('Sem1_GPA'),
+                    "Sem2": student_data.get('Sem2_GPA'),
+                    "Sem3": student_data.get('Sem3_GPA'),
+                    "Sem4": student_data.get('Sem4_GPA'),
+                    "Sem5": student_data.get('Sem5_GPA')
+                }
             }
         })
     except Exception as e:
