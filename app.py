@@ -80,8 +80,17 @@ try:
 
 except Exception as e:
     print(f"❌ CRITICAL: Cannot connect to PostgreSQL. Reason: {e}")
-    print("   App is running but student data is unavailable. Fix the DB connection.")
     logging.error(f"PostgreSQL connection failed: {e}")
+    print("   Falling back to local CSV files...")
+    try:
+        df_3rd_year = pd.read_csv("student_coach_dataset_final.csv", dtype=str)
+        df_3rd_year.columns = df_3rd_year.columns.str.strip()
+        df_2nd_year = pd.read_csv("2nd_year_dataset.csv", dtype=str)
+        df_2nd_year.columns = df_2nd_year.columns.str.strip()
+        df_students = pd.concat([df_3rd_year, df_2nd_year], ignore_index=True)
+        print(f"✅ System Online (CSV Fallback): {len(df_3rd_year)} 3rd-year | {len(df_2nd_year)} 2nd-year")
+    except Exception as inner_e:
+        print(f"   ❌ CSV Fallback failed: {inner_e}")
 
 # --- Calculate class-wide averages for benchmarking ---
 try:
