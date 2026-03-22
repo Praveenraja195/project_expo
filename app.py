@@ -99,8 +99,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Initialization with the environment keys
-groq_client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+groq_client = OpenAI(api_key=GROQ_API_KEY or "dummy_key", base_url="https://api.groq.com/openai/v1")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY or "dummy_key")
 
 # Initialize JSON-backed/DB-backed skill-check scoreboard
 SCORES_FILE = 'scores.json'
